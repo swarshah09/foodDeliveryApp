@@ -1,0 +1,198 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fds
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fds-config
+  namespace: fds
+data:
+  EUREKA_SERVER_URL: http://eureka:8761/eureka/
+  KAFKA_BOOTSTRAP: kafka:9092
+---
+# Minimal MySQL (use managed DB in prod)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: fds
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: mysql } }
+  template:
+    metadata: { labels: { app: mysql } }
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          env:
+            - { name: MYSQL_ROOT_PASSWORD, value: root }
+          ports: [{ containerPort: 3306 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: fds
+spec:
+  selector: { app: mysql }
+  ports:
+    - port: 3306
+      targetPort: 3306
+---
+# Zookeeper + Kafka (for dev/demo)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zookeeper
+  namespace: fds
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: zookeeper } }
+  template:
+    metadata: { labels: { app: zookeeper } }
+    spec:
+      containers:
+        - name: zookeeper
+          image: bitnami/zookeeper:3.9
+          env: [{ name: ALLOW_ANONYMOUS_LOGIN, value: "yes" }]
+          ports: [{ containerPort: 2181 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: zookeeper
+  namespace: fds
+spec:
+  selector: { app: zookeeper }
+  ports:
+    - port: 2181
+      targetPort: 2181
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kafka
+  namespace: fds
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: kafka } }
+  template:
+    metadata: { labels: { app: kafka } }
+    spec:
+      containers:
+        - name: kafka
+          image: bitnami/kafka:3.7
+          env:
+            - { name: KAFKA_CFG_ZOOKEEPER_CONNECT, value: zookeeper:2181 }
+            - { name: KAFKA_CFG_LISTENERS, value: PLAINTEXT://:9092 }
+            - { name: KAFKA_CFG_ADVERTISED_LISTENERS, value: PLAINTEXT://kafka:9092 }
+            - { name: ALLOW_PLAINTEXT_LISTENER, value: "yes" }
+            - { name: KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE, value: "true" }
+          ports: [{ containerPort: 9092 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: fds
+spec:
+  selector: { app: kafka }
+  ports:
+    - port: 9092
+      targetPort: 9092
+---
+# Eureka Server
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eureka
+  namespace: fds
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: eureka } }
+  template:
+    metadata: { labels: { app: eureka } }
+    spec:
+      containers:
+        - name: eureka
+          image: fds/eureka-server:local
+          ports: [{ containerPort: 8761 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eureka
+  namespace: fds
+spec:
+  selector: { app: eureka }
+  ports:
+    - port: 8761
+      targetPort: 8761
+---
+# API Gateway
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: fds
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: gateway } }
+  template:
+    metadata: { labels: { app: gateway } }
+    spec:
+      containers:
+        - name: gateway
+          image: fds/api-gateway:local
+          envFrom: [{ configMapRef: { name: fds-config } }]
+          ports: [{ containerPort: 8080 }]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: fds
+spec:
+  type: LoadBalancer
+  selector: { app: gateway }
+  ports:
+    - port: 80
+      targetPort: 8080
+---
+# Example: User service
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: fds
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: user-service } }
+  template:
+    metadata: { labels: { app: user-service } }
+    spec:
+      containers:
+        - name: user-service
+          image: fds/user-service:local
+          envFrom: [{ configMapRef: { name: fds-config } }]
+          env:
+            - { name: MYSQL_HOST, value: mysql }
+            - { name: MYSQL_PORT, value: "3306" }
+            - { name: MYSQL_DB, value: fds_users }
+            - { name: MYSQL_USER, value: root }
+            - { name: MYSQL_PASSWORD, value: root }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: fds
+spec:
+  selector: { app: user-service }
+  ports:
+    - port: 8080
+      targetPort: 8080
+

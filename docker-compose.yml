@@ -80,6 +80,15 @@ services:
       EUREKA_SERVER_URL: http://eureka-server:8761/eureka/
       JWT_SECRET: supersecretjwtkeychangeme
 
+  frontend:
+    build: ./frontend
+    image: fds/frontend:local
+    container_name: fds-frontend
+    depends_on:
+      - api-gateway
+    ports:
+      - "5173:80"
+
   user-service:
     build: ./user-service
     image: fds/user-service:local
