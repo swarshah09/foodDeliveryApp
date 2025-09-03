@@ -1,3 +1,10 @@
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+COPY target/api-gateway-*.jar app.jar
+EXPOSE 8080
+ENV SPRING_PROFILES_ACTIVE=docker
+ENTRYPOINT ["java","-jar","/app/app.jar"]
+
 FROM eclipse-temurin:17-jdk as builder
 WORKDIR /app
 COPY pom.xml .

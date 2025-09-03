@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS orders (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    product_name VARCHAR(255) NOT NULL,
+    quantity INT NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
